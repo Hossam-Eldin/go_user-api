@@ -2,19 +2,28 @@ package users
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/Hossam-Eldin/go_user-api/database/mysql/usersdb"
 	"github.com/Hossam-Eldin/go_user-api/utils/date"
 	"github.com/Hossam-Eldin/go_user-api/utils/errors"
 )
 
 var (
-	usersDB = make(map[int64]*User)
+	usersFakeDB = make(map[int64]*User)
+)
+
+const (
+	queryInsertUser = "INSERT INTO users(first_name, last_name, email, date_created) VALUES(?, ?, ?, ?);"
 )
 
 //Get : to find user by id
 func (user *User) Get() *errors.RestErr {
+	if err := usersdb.Client.Ping(); err != nil {
+		panic(err)
+	}
 
-	result := usersDB[user.ID]
+	result := usersFakeDB[user.ID]
 	if result == nil {
 		return errors.NewNotFoundError(fmt.Sprintf("user %d not found ", user.ID))
 	}
@@ -29,15 +38,27 @@ func (user *User) Get() *errors.RestErr {
 
 //Save : to insert user data
 func (user *User) Save() *errors.RestErr {
-	current := usersDB[user.ID]
-	if current != nil {
-		if current.Email == user.Email {
-			return errors.NewBadRequestError(fmt.Sprintf("email %s already registered", user.Email))
-		}
-		return errors.NewBadRequestError(fmt.Sprintf("user %d already exists", user.ID))
+
+	stmt, err := usersdb.Client.Prepare(queryInsertUser)
+	if err != nil {
+		return errors.NewInternalServerError(err.Error())
 	}
+	defer stmt.Close()
 
 	user.DateCreated = date.GetNowString()
-	usersDB[user.ID] = user
+	insertResult, err := stmt.Exec(user.FirstName, user.LastName, user.Email, user.DateCreated)
+	if err != nil {
+		if strings.Contains(err.Error(), "email") {
+			return errors.NewBadRequestError(fmt.Sprintf("Email %s Already Exist ", user.Email))
+		}
+		return errors.NewInternalServerError(fmt.Sprintf("error when trying to save the user %s", err.Error()))
+	}
+
+	userID, err := insertResult.LastInsertId()
+	if err != nil {
+		return errors.NewInternalServerError(fmt.Sprintf("error when trying to save the user %s", err.Error()))
+
+	}
+	user.ID = userID
 	return nil
 }

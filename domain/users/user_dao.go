@@ -1,12 +1,10 @@
 package users
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/Hossam-Eldin/go_user-api/database/mysql/usersdb"
 	"github.com/Hossam-Eldin/go_user-api/utils/date"
 	"github.com/Hossam-Eldin/go_user-api/utils/errors"
+	"github.com/Hossam-Eldin/go_user-api/utils/mysqlutils"
 )
 
 var (
@@ -14,25 +12,25 @@ var (
 )
 
 const (
+	errorNoRows     = "no rows in result set"
 	queryInsertUser = "INSERT INTO users(first_name, last_name, email, date_created) VALUES(?, ?, ?, ?);"
+	queryGetUser    = "SELECT * FROM users WHERE id=?;"
 )
 
 //Get : to find user by id
 func (user *User) Get() *errors.RestErr {
-	if err := usersdb.Client.Ping(); err != nil {
-		panic(err)
+	stmt, err := usersdb.Client.Prepare(queryGetUser)
+	if err != nil {
+		return errors.NewInternalServerError(err.Error())
 	}
+	defer stmt.Close()
 
-	result := usersFakeDB[user.ID]
-	if result == nil {
-		return errors.NewNotFoundError(fmt.Sprintf("user %d not found ", user.ID))
+	result := stmt.QueryRow(user.ID)
+
+	if err := result.Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.DateCreated); err != nil {
+		return mysqlutils.ParseError(err)
+
 	}
-	user.ID = result.ID
-	user.FirstName = result.FirstName
-	user.LastName = result.LastName
-	user.Email = result.Email
-	user.DateCreated = result.DateCreated
-
 	return nil
 }
 
@@ -46,17 +44,14 @@ func (user *User) Save() *errors.RestErr {
 	defer stmt.Close()
 
 	user.DateCreated = date.GetNowString()
-	insertResult, err := stmt.Exec(user.FirstName, user.LastName, user.Email, user.DateCreated)
-	if err != nil {
-		if strings.Contains(err.Error(), "email") {
-			return errors.NewBadRequestError(fmt.Sprintf("Email %s Already Exist ", user.Email))
-		}
-		return errors.NewInternalServerError(fmt.Sprintf("error when trying to save the user %s", err.Error()))
+	insertResult, saveErr := stmt.Exec(user.FirstName, user.LastName, user.Email, user.DateCreated)
+	if saveErr != nil {
+		return mysqlutils.ParseError(saveErr)
 	}
 
 	userID, err := insertResult.LastInsertId()
 	if err != nil {
-		return errors.NewInternalServerError(fmt.Sprintf("error when trying to save the user %s", err.Error()))
+		return mysqlutils.ParseError(err)
 
 	}
 	user.ID = userID

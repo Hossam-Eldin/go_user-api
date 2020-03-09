@@ -22,6 +22,9 @@ type User struct {
 	Password    string `json:"password"`
 }
 
+// Users  : is slices for user
+type Users []User
+
 //Validate : for user data
 func (user *User) Validate() *errors.RestErr {
 	user.FirstName = strings.TrimSpace(strings.ToLower(user.FirstName))

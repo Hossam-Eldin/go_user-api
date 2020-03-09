@@ -2,6 +2,7 @@ package services
 
 import (
 	"github.com/Hossam-Eldin/go_user-api/domain/users"
+	"github.com/Hossam-Eldin/go_user-api/utils/crypto"
 	"github.com/Hossam-Eldin/go_user-api/utils/date"
 	"github.com/Hossam-Eldin/go_user-api/utils/errors"
 )
@@ -23,6 +24,7 @@ func CreateUser(user users.User) (*users.User, *errors.RestErr) {
 	}
 	user.Status = users.StatusActive
 	user.DateCreated = date.GetNowDbFormat()
+	user.Password = crypto.GetMd5(user.Password)
 
 	if err := user.Save(); err != nil {
 		return nil, err
@@ -69,7 +71,7 @@ func DeleteUser(userID int64) *errors.RestErr {
 }
 
 //Search : to service status
-func Search(status string) ([]users.User, *errors.RestErr) {
+func Search(status string) (users.Users, *errors.RestErr) {
 	dao := &users.User{}
 	return dao.FindByStatus(status)
 }

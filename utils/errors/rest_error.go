@@ -1,12 +1,20 @@
 package errors
 
-import "net/http"
+import (
+	"errors"
+	"net/http"
+)
 
 //RestErr : struct error
 type RestErr struct {
 	Message string `json:"message"`
 	Status  int    `json:"status"`
 	Error   string `json:"error"`
+}
+
+//NewError : error new
+func NewError(msg string) error {
+	return errors.New(msg)
 }
 
 //NewBadRequestError : to handle the same type of error
